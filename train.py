@@ -24,7 +24,8 @@ def setup_seed(seed):
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--name", type=str, default="default")
-    parser.add_argument("--dataset", type=str, default="patent", choices=["patent", "expert", "equipment"])
+    parser.add_argument("--dataset", type=str, default="init")
+    parser.add_argument("--domain", type=str, default="patent", choices=["patent", "expert", "equipment"])
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--batch_size", type=int, default=20)
     parser.add_argument("--lr", type=float, default=1e-5)
@@ -150,7 +151,7 @@ def main():
     setup_seed(20)
     args = get_args()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    args["output_dir"] = "./output/" + args["name"]
+    args["output_dir"] = os.path.join("./output", args["domain"], args["name"])
     if not os.path.exists(args["output_dir"]):
         os.makedirs(args["output_dir"], exist_ok=True)
     logger = create_logger()
@@ -159,8 +160,8 @@ def main():
     logger.info(args)
     model, tokenizer = create_model(args, device)
     model = model.to(device)
-    train_list = get_tsv_data("./data/{}/train.tsv".format(args["dataset"]))
-    val_list = get_tsv_data("./data/{}/test.tsv".format(args["dataset"]))
+    train_list = get_tsv_data(os.path.join("./data", args["domain"], args["dataset"], "train.tsv"))
+    val_list = get_tsv_data(os.path.join("./data", args["domain"], args["dataset"], "test.tsv"))
     # 开始训练
     train(model, device, train_list, val_list, args, tokenizer, logger)
 

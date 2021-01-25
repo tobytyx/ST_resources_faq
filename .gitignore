@@ -2,3 +2,6 @@ __pycache__
 .vscode
 dependences
 output
+data/patent/*
+data/expert/*
+data/equipment/*

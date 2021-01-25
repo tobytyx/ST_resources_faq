@@ -1,27 +1,18 @@
 # -*- coding: utf-8 -*-
 from tools import create_model
 import torch
+import json
 import pickle
 import os
 from fastapi import FastAPI
+from pydantic import BaseModel
+from mysql_utils import (
+    get_mysql_connect, insert_model_record, delete_model_record, update_model_record,
+    STATE_ERROR_NUMBER, STATE_READY_NUMBER, STATE_TRAINING_NUMBER, STATE_USING_NUMBER)
 
-args = {
-    "patent": {
-        "pre_model": "./dependences/roberta_wwm_ext",
-        "model_name": "bi",
-        "model_dir": "./output/bi_patent"
-    },
-    "expert": {
-        "pre_model": "./dependences/roberta_wwm_ext",
-        "model_name": "bi",
-        "model_dir": "./output/bi_expert"
-    },
-    "equipment": {
-        "pre_model": "./dependences/roberta_wwm_ext",
-        "model_name": "bi",
-        "model_dir": "./output/bi_equipment"
-    }
-}
+SUCCESS_CODE = 0
+FAIL_CODE = -1
+
 max_length = 64
 device = torch.device("cpu")
 ERROR_LABEL = 0
@@ -29,34 +20,45 @@ MAX_LIST_NUM = 3
 ENSURE_THRESHOLD = 0.92
 
 
-def get_state_map():
-    state_map = {}
-    for domain, param in args.items():
-        # documents
-        with open(os.path.join(param["model_dir"], "total.pkl"), mode="rb") as f:
-            data = pickle.load(f)
-        vecs, labels = data["vecs"], data["labels"]
-        print("documents for domain {} ready, total: {}".format(domain, len(labels)))
-        # model
-        model, tokenizer = create_model(param, device)
-        model.load_state_dict(
-            torch.load(os.path.join(param["model_dir"], "model.bin"), map_location=device)
-        )
-        model = model.eval()
-        state_map[domain] = {
-            "model": model,
-            "tokenizer": tokenizer,
-            "vecs": vecs,
-            "labels": labels
-        }
-    return state_map
+class Item(BaseModel):
+    record_id: int=None
+    name: str=None
+    domain: str=None
+    data_path: str=None
+    category_num: int=None
 
 
-state_map = get_state_map()
+def load_model(model_dir):
+    with open(os.path.join(model_dir, "args.json"), mode="r") as f:
+        args = json.load(f)
+    with open(os.path.join(model_dir, "total.pkl"), mode="rb") as f:
+        data = pickle.load(f)
+    vecs, labels = data["vecs"], data["labels"]
+    # model
+    model, tokenizer = create_model(args, device)
+    model.load_state_dict(
+        torch.load(os.path.join(model_dir, "model.bin"), map_location=device)
+    )
+    model = model.eval()
+    return {
+        "record_id": args["record_id"],
+        "name": args["name"],
+        "model": model,
+        "tokenizer": tokenizer,
+        "vecs": vecs,
+        "labels": labels
+    }
+
+
+state_map = {
+    "patent": {},
+    "expert": {},
+    "equipment": {}
+}
 
 
 def rank_single_text(domain, text, return_type="list"):
-    if domain not in state_map:
+    if domain not in state_map or "tokenizer" not in state_map[domain]:
         return ERROR_LABEL
     tokenizer, model = state_map[domain]["tokenizer"], state_map[domain]["model"]
     vecs, labels = state_map[domain]["vecs"], state_map[domain]["labels"]
@@ -87,9 +89,10 @@ def rank_single_text(domain, text, return_type="list"):
 
 app = FastAPI()
 
-@app.get("/{domain}/{text}")
-def read_item(domain: str, text: str):
+@app.get("/faq/")
+async def faq_service(domain: str, text: str):
     label = [ERROR_LABEL]
+    state = SUCCESS_CODE
     try:
         text = str(text)
         assert len(text) > 0
@@ -97,4 +100,61 @@ def read_item(domain: str, text: str):
     except Exception as e:
         print(e)
         label = [ERROR_LABEL]
-    return {"label": label}
+        state = FAIL_CODE
+    return {"label": label, "state": state}
+
+
+@app.post("/create/")
+async def create_model_service(item: Item):
+    state = SUCCESS_CODE
+    record_id = -1
+    try:
+        name = item.name
+        domain = item.domain
+        data_path = item.data_path
+        category_num = item.category_num
+        conn = get_mysql_connect()
+        record_id = insert_model_record(conn, name, domain, STATE_TRAINING_NUMBER, data_path, category_num, "")
+        conn.close()
+        os.system("sh auto_train.py {} {} {} {}".format(record_id, name, domain, data_path))
+    except:
+        state = FAIL_CODE
+    return {"record_id": record_id, "state": state}
+
+
+@app.post("/update/")
+async def update_model_service(item: Item):
+    state = SUCCESS_CODE
+    try:
+        record_id = item.record_id
+        name = item.name
+        domain = item.domain
+        old_record_id = state_map[domain]["record_id"]
+        global state_map
+        model_dir = os.path.join("./output/", domain, name+"_"+record_id)
+        state_map[domain]["model"] = None
+        state_map[domain] = load_model(model_dir)
+        conn = get_mysql_connect()
+        update_model_record(conn, old_record_id, STATE_READY_NUMBER)
+        update_model_record(conn, record_id, STATE_USING_NUMBER)
+        conn.close()
+    except:
+        state = FAIL_CODE
+    return {"state": state}
+
+
+@app.post("/delete/")
+async def delete_model_service(item: Item):
+    state = SUCCESS_CODE
+    model_state = STATE_READY_NUMBER
+    try:
+        record_id = item.record_id
+        conn = get_mysql_connect()
+        res = delete_model_record(conn, record_id)
+        if res != STATE_READY_NUMBER:
+            state = FAIL_CODE
+        model_state = res
+    except:
+        state = FAIL_CODE
+        model_state = STATE_ERROR_NUMBER
+    return {"state": state, "model_state": model_state}
