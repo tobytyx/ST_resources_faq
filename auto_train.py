@@ -48,7 +48,7 @@ def get_args():
     return args
 
 def main(args):
-    args["output_dir"] = os.path.join("./output", args["domain"], args["name"]+"_"+args["record_id"])
+    args["output_dir"] = "./output/{}/{}_{}".format(args["domain"], args["name"], args["record_id"])
     logger = create_logger()
     if not os.path.exists(args["output_dir"]):
         os.makedirs(args["output_dir"], exist_ok=True)
@@ -101,7 +101,7 @@ def main(args):
     saved_data = {"vecs": doc_vecs, "labels": doc_labels}
     with open(os.path.join(args["output_dir"], "total.pkl"), mode="wb") as f:
         pickle.dump(saved_data, f)
-    logger.info("finish generate corpus vecs to ", os.path.join(args["output_dir"], "total.pkl"))
+    logger.info("finish generate corpus vecs to " + os.path.join(args["output_dir"], "total.pkl"))
     return 0
 
 
@@ -110,7 +110,9 @@ if __name__ == '__main__':
     main_args = get_args()
     res = main(args=main_args)
     conn = get_mysql_connect()
-    if res == 0:
-        update_model_record(conn, main_args["record_id"], STATE_READY_NUMBER)
-    else:
-        update_model_record(conn, main_args["record_id"], STATE_ERROR_NUMBER)
+    if conn is not None:
+        if res == 0:
+            update_model_record(conn, main_args["record_id"], STATE_READY_NUMBER)
+        else:
+            update_model_record(conn, main_args["record_id"], STATE_ERROR_NUMBER)
+        conn.close()

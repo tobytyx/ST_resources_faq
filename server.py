@@ -7,7 +7,7 @@ import os
 from fastapi import FastAPI
 from pydantic import BaseModel
 from mysql_utils import (
-    get_mysql_connect, insert_model_record, delete_model_record, update_model_record,
+    get_mysql_connect, insert_model_record, delete_model_record, update_model_record, init_model_record,
     STATE_ERROR_NUMBER, STATE_READY_NUMBER, STATE_TRAINING_NUMBER, STATE_USING_NUMBER)
 
 SUCCESS_CODE = 0
@@ -87,7 +87,11 @@ def rank_single_text(domain, text, return_type="list"):
     max_index = torch.argmax(scores).item()
     return labels[max_index]
 
+init_status = init_model_record()
+assert init_status == 0, "{}".format(init_status)
+
 app = FastAPI()
+
 
 @app.get("/faq/")
 async def faq_service(domain: str, text: str):
@@ -116,7 +120,7 @@ async def create_model_service(item: Item):
         conn = get_mysql_connect()
         record_id = insert_model_record(conn, name, domain, STATE_TRAINING_NUMBER, data_path, category_num, "")
         conn.close()
-        os.system("sh auto_train.py {} {} {} {}".format(record_id, name, domain, data_path))
+        os.system("sh auto_train.sh {} {} {} {}".format(record_id, name, domain, data_path))
     except:
         state = FAIL_CODE
     return {"record_id": record_id, "state": state}
@@ -129,13 +133,14 @@ async def update_model_service(item: Item):
         record_id = item.record_id
         name = item.name
         domain = item.domain
-        old_record_id = state_map[domain]["record_id"]
         global state_map
-        model_dir = os.path.join("./output/", domain, name+"_"+record_id)
+        old_record_id = state_map[domain].get("record_id", -1)
+        model_dir = "./output/{}/{}_{}".format(domain, name, record_id)
         state_map[domain]["model"] = None
         state_map[domain] = load_model(model_dir)
         conn = get_mysql_connect()
-        update_model_record(conn, old_record_id, STATE_READY_NUMBER)
+        if old_record_id != -1:
+            update_model_record(conn, old_record_id, STATE_READY_NUMBER)
         update_model_record(conn, record_id, STATE_USING_NUMBER)
         conn.close()
     except:

@@ -77,7 +77,7 @@ def delete_model_record(conn: Connection, uid):
 def update_model_record(conn: Connection, uid, state):
     try:
         uid = str(uid)
-        state = str(uid)
+        state = str(state)
         cur = conn.cursor()
         update_num = cur.execute(
             'update faq_management_model set state=%s where record_id=%s',
@@ -88,5 +88,21 @@ def update_model_record(conn: Connection, uid, state):
         conn.commit()
         cur.close()
     except:
+        return -1
+    return 0
+
+
+def init_model_record():
+    try:
+        conn = get_mysql_connect()
+        cur = conn.cursor()
+        update_num = cur.execute(
+            'update faq_management_model set state=%s where record_id=%s',
+            args=("0", "1")
+        )
+        conn.commit()
+        cur.close()
+    except Exception as e:
+        print(e)
         return -1
     return 0
