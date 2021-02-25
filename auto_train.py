@@ -49,17 +49,15 @@ def get_args():
 
 def main(args):
     args["output_dir"] = "./output/{}/{}_{}".format(args["domain"], args["name"], args["record_id"])
-    logger = create_logger()
+    data_path = os.path.join(args["output_dir"], "data.tsv")
+    logger = create_logger(log_path=os.path.join(args["output_dir"], "train.log"))
     if not os.path.exists(args["output_dir"]):
         os.makedirs(args["output_dir"], exist_ok=True)
-    else:
-        return -1
-    data_path = os.path.join(args["output_dir"], "data.tsv")
-    try:
-        copyfile(args["data_path"], data_path)
-    except IOError as e:
-        logger.info("No source file", e)
-        return -1
+        try:
+            copyfile(args["data_path"], data_path)
+        except IOError as e:
+            logger.info("No source file", e)
+            return -1
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     with open(os.path.join(args["output_dir"], "args.json"), mode="w") as f:
         json.dump(args, f, ensure_ascii=False, indent=2)
