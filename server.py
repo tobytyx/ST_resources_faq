@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
+from typing import List
 from tools import create_model
+from fastapi.middleware.cors import CORSMiddleware
 import torch
 import json
 import pickle
@@ -8,6 +10,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from mysql_utils import (
     get_mysql_connect, insert_model_record, delete_model_record, update_model_record, init_model_record,
+    insert_category, delete_category, update_category, insert_query, delete_query,
+    insert_model_record_new, get_category_queries,
     STATE_ERROR_NUMBER, STATE_READY_NUMBER, STATE_TRAINING_NUMBER, STATE_USING_NUMBER)
 
 SUCCESS_CODE = 0
@@ -26,6 +30,15 @@ class Item(BaseModel):
     domain: str=None
     data_path: str=None
     category_num: int=None
+    categories: List=None
+
+
+class DataItem(BaseModel):
+    category_id: int=None
+    name: str=None
+    answer: str=None
+    query_id: int=None
+    text: str=None
 
 
 def load_model(model_dir):
@@ -91,7 +104,13 @@ init_status = init_model_record()
 assert init_status == 0, "{}".format(init_status)
 
 app = FastAPI()
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/faq/")
 async def faq_service(domain: str, text: str):
@@ -119,9 +138,34 @@ async def create_model_service(item: Item):
         category_num = item.category_num
         conn = get_mysql_connect()
         record_id = insert_model_record(conn, name, domain, STATE_TRAINING_NUMBER, data_path, category_num, "")
-        conn.close()
         os.system("sh auto_train.sh {} {} {} {}".format(record_id, name, domain, data_path))
     except:
+        state = FAIL_CODE
+    return {"record_id": record_id, "state": state}
+
+
+@app.post("/model/create/")
+async def create_model_new_service(item: Item):
+    state = SUCCESS_CODE
+    record_id = -1
+    try:
+        name = item.name
+        domain = item.domain
+        categories = item.categories
+        conn = get_mysql_connect()
+        record_id = insert_model_record_new(conn, name, domain, STATE_TRAINING_NUMBER, categories, "")
+        model_dir = "./output/{}/{}_{}".format(domain, name, record_id)
+        if not os.path.exists(model_dir):
+            os.makedirs(model_dir, exist_ok=True)
+        with open(os.path.join(model_dir, "data.tsv"), mode="w") as f:
+            for category in categories:
+                texts, _ = get_category_queries(conn, category)
+                for text in texts:
+                    f.write("{}\t{}\n".format(text, category))
+        os.system("sh auto_train.sh {} {} {} {}".format(
+            record_id, name, domain, os.path.join(model_dir, "data.tsv")))
+    except Exception as e:
+        print(e)
         state = FAIL_CODE
     return {"record_id": record_id, "state": state}
 
@@ -142,7 +186,6 @@ async def update_model_service(item: Item):
         if old_record_id != -1:
             update_model_record(conn, old_record_id, STATE_READY_NUMBER)
         update_model_record(conn, record_id, STATE_USING_NUMBER)
-        conn.close()
     except:
         state = FAIL_CODE
     return {"state": state}
@@ -163,3 +206,68 @@ async def delete_model_service(item: Item):
         state = FAIL_CODE
         model_state = STATE_ERROR_NUMBER
     return {"state": state, "model_state": model_state}
+
+
+@app.post("/category/create/")
+async def create_category_service(item: DataItem):
+    state = SUCCESS_CODE
+    category_id = -1
+    try:
+        name = item.name
+        answer = item.answer
+        conn = get_mysql_connect()
+        category_id = insert_category(conn, name, answer)
+    except:
+        state = FAIL_CODE
+    return {"category_id": category_id, "state": state}
+
+
+@app.post("/category/update/")
+async def update_category_service(item: DataItem):
+    state = SUCCESS_CODE
+    try:
+        category_id = item.category_id
+        answer = item.answer
+        conn = get_mysql_connect()
+        state = update_category(conn, category_id, answer)
+    except:
+        state = FAIL_CODE
+    return {"state": state}
+
+
+@app.post("/category/delete/")
+async def delete_category_service(item: DataItem):
+    state = SUCCESS_CODE
+    try:
+        category_id = str(item.category_id)
+        conn = get_mysql_connect()
+        if delete_category(conn, category_id) == STATE_ERROR_NUMBER:
+            state = FAIL_CODE
+    except:
+        state = FAIL_CODE
+    return {"state": state}
+
+
+@app.post("/query/create/")
+async def create_query_service(item: DataItem):
+    state = SUCCESS_CODE
+    try:
+        category_id = item.category_id
+        text = item.text
+        conn = get_mysql_connect()
+        query_id = insert_query(conn, category_id, text)
+    except:
+        state = FAIL_CODE
+    return {"query_id": query_id, "state": state}
+
+
+@app.post("/query/delete/")
+async def delete_query_service(item: DataItem):
+    state = SUCCESS_CODE
+    try:
+        query_id = str(item.query_id)
+        conn = get_mysql_connect()
+        delete_query(conn, query_id)
+    except:
+        state = FAIL_CODE
+    return {"state": state}
