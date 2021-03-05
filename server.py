@@ -138,8 +138,13 @@ async def create_model_service(item: Item):
         category_num = item.category_num
         conn = get_mysql_connect()
         record_id = insert_model_record(conn, name, domain, STATE_TRAINING_NUMBER, data_path, category_num, "")
+        model_dir = "./output/{}/{}_{}".format(domain, name, record_id)
+        if not os.path.exists(model_dir):
+            os.makedirs(model_dir, exist_ok=True)
+        os.system("cp {} {}".format(data_path, os.path.join(model_dir, "data.tsv")))
         os.system("sh auto_train.sh {} {} {} {}".format(record_id, name, domain, data_path))
-    except:
+    except Exception as e:
+        print(e)
         state = FAIL_CODE
     return {"record_id": record_id, "state": state}
 
@@ -186,7 +191,8 @@ async def update_model_service(item: Item):
         if old_record_id != -1:
             update_model_record(conn, old_record_id, STATE_READY_NUMBER)
         update_model_record(conn, record_id, STATE_USING_NUMBER)
-    except:
+    except Exception as e:
+        print(e)
         state = FAIL_CODE
     return {"state": state}
 
@@ -202,7 +208,8 @@ async def delete_model_service(item: Item):
         if res != STATE_READY_NUMBER:
             state = FAIL_CODE
         model_state = res
-    except:
+    except Exception as e:
+        print(e)
         state = FAIL_CODE
         model_state = STATE_ERROR_NUMBER
     return {"state": state, "model_state": model_state}
@@ -217,7 +224,8 @@ async def create_category_service(item: DataItem):
         answer = item.answer
         conn = get_mysql_connect()
         category_id = insert_category(conn, name, answer)
-    except:
+    except Exception as e:
+        print(e)
         state = FAIL_CODE
     return {"category_id": category_id, "state": state}
 
@@ -230,7 +238,8 @@ async def update_category_service(item: DataItem):
         answer = item.answer
         conn = get_mysql_connect()
         state = update_category(conn, category_id, answer)
-    except:
+    except Exception as e:
+        print(e)
         state = FAIL_CODE
     return {"state": state}
 
@@ -243,7 +252,8 @@ async def delete_category_service(item: DataItem):
         conn = get_mysql_connect()
         if delete_category(conn, category_id) == STATE_ERROR_NUMBER:
             state = FAIL_CODE
-    except:
+    except Exception as e:
+        print(e)
         state = FAIL_CODE
     return {"state": state}
 
@@ -256,7 +266,8 @@ async def create_query_service(item: DataItem):
         text = item.text
         conn = get_mysql_connect()
         query_id = insert_query(conn, category_id, text)
-    except:
+    except Exception as e:
+        print(e)
         state = FAIL_CODE
     return {"query_id": query_id, "state": state}
 
@@ -268,6 +279,7 @@ async def delete_query_service(item: DataItem):
         query_id = str(item.query_id)
         conn = get_mysql_connect()
         delete_query(conn, query_id)
-    except:
+    except Exception as e:
+        print(e)
         state = FAIL_CODE
     return {"state": state}

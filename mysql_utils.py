@@ -26,7 +26,8 @@ def get_mysql_connect():
             database=MYSQL_DB,
             charset='utf8mb4'
         )
-    except:
+    except Exception as e:
+        print(e)
         conn = None
     return conn
 
@@ -50,7 +51,8 @@ def insert_model_record(conn: Connection, name, domain, state, data_path, catego
         record_id = int(cur.fetchone()[0])
         conn.commit()
         cur.close()
-    except:
+    except Exception as e:
+        print(e)
         return STATE_ERROR_NUMBER
     return record_id
 
@@ -97,7 +99,8 @@ def delete_model_record(conn: Connection, record_id):
             )
             conn.commit()
             cur.close()
-    except:
+    except Exception as e:
+        print(e)
         return STATE_ERROR_NUMBER
     return state
 
@@ -115,7 +118,8 @@ def update_model_record(conn: Connection, uid, state):
             return STATE_ERROR_NUMBER
         conn.commit()
         cur.close()
-    except:
+    except Exception as e:
+        print(e)
         return STATE_ERROR_NUMBER
     return 0
 
@@ -173,7 +177,8 @@ def delete_category(conn: Connection, category_id):
         )
         conn.commit()
         cur.close()
-    except:
+    except Exception as e:
+        print(e)
         return STATE_ERROR_NUMBER
     return 0
 
@@ -191,7 +196,8 @@ def update_category(conn: Connection, category_id, answer):
             return STATE_ERROR_NUMBER
         conn.commit()
         cur.close()
-    except:
+    except Exception as e:
+        print(e)
         return STATE_ERROR_NUMBER
     return 0
 
@@ -224,7 +230,8 @@ def insert_query(conn: Connection, category_id, text):
         query_id = int(cur.fetchone()[0])
         conn.commit()
         cur.close()
-    except:
+    except Exception as e:
+        print(e)
         return STATE_ERROR_NUMBER
     return query_id
 
@@ -245,6 +252,7 @@ def delete_query(conn: Connection, query_id):
         )
         conn.commit()
         cur.close()
-    except:
+    except Exception as e:
+        print(e)
         return STATE_ERROR_NUMBER
     return 0
