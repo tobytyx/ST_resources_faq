@@ -24,7 +24,6 @@ def setup_seed(seed):
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--name", type=str, default="default")
-    parser.add_argument("--dataset", type=str, default="init")
     parser.add_argument("--domain", type=str, default="patent", choices=["patent", "expert", "equipment"])
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--batch_size", type=int, default=20)
@@ -160,8 +159,8 @@ def main():
     logger.info(args)
     model, tokenizer = create_model(args, device)
     model = model.to(device)
-    train_list = get_tsv_data(os.path.join("./data", args["domain"], args["dataset"], "train.tsv"))
-    val_list = get_tsv_data(os.path.join("./data", args["domain"], args["dataset"], "test.tsv"))
+    train_list = get_tsv_data(os.path.join("./data", args["domain"], "train.tsv"))
+    val_list = get_tsv_data(os.path.join("./data", args["domain"], "test.tsv"))
     # 开始训练
     train(model, device, train_list, val_list, args, tokenizer, logger)
 
