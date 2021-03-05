@@ -1,0 +1,7 @@
+torch==1.7.1
+transformers==4.3.2
+spacy==3.0.3
+nltk==3.5
+PyMySQL==1.0.2
+fastapi==0.63.0
+uvicorn==0.13.4
