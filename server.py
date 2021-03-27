@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from typing import List
+import traceback
 from tools import create_model
 from fastapi.middleware.cors import CORSMiddleware
 import torch
@@ -11,8 +12,9 @@ from pydantic import BaseModel
 from mysql_utils import (
     get_mysql_connect, insert_model_record, delete_model_record, update_model_record, init_model_record,
     insert_category, delete_category, update_category, insert_query, delete_query,
-    insert_model_record_new, get_category_queries,
+    insert_model_record_new, get_category_queries, get_category_answer,
     STATE_ERROR_NUMBER, STATE_READY_NUMBER, STATE_TRAINING_NUMBER, STATE_USING_NUMBER)
+
 
 SUCCESS_CODE = 0
 FAIL_CODE = -1
@@ -46,6 +48,8 @@ def load_model(model_dir):
         args = json.load(f)
     with open(os.path.join(model_dir, "total.pkl"), mode="rb") as f:
         data = pickle.load(f)
+    with open(os.path.join(model_dir, "label2answer.json"), mode="r") as f:
+        label2answer = json.load(f)
     vecs, labels = data["vecs"], data["labels"]
     # model
     model, tokenizer = create_model(args, device)
@@ -59,7 +63,8 @@ def load_model(model_dir):
         "model": model,
         "tokenizer": tokenizer,
         "vecs": vecs,
-        "labels": labels
+        "labels": labels,
+        "label2answer": label2answer
     }
 
 
@@ -72,7 +77,7 @@ state_map = {
 
 def rank_single_text(domain, text, return_type="list"):
     if domain not in state_map or "tokenizer" not in state_map[domain]:
-        return ERROR_LABEL
+        return [ERROR_LABEL]
     tokenizer, model = state_map[domain]["tokenizer"], state_map[domain]["model"]
     vecs, labels = state_map[domain]["vecs"], state_map[domain]["labels"]
 
@@ -116,15 +121,20 @@ app.add_middleware(
 async def faq_service(domain: str, text: str):
     label = [ERROR_LABEL]
     state = SUCCESS_CODE
+    if domain not in state_map or len(state_map[domain]) == 0:
+        return {"label": label, "state": state, "answers": ["该领域暂未上线"]}
     try:
         text = str(text)
         assert len(text) > 0
         label = rank_single_text(domain, text, "list")
-    except Exception as e:
-        print(e)
+        answers = [state_map[domain]["label2answer"][str(i)] for i in label]
+    except Exception:
+        traceback.print_exc()
+        print(state_map[domain])
         label = [ERROR_LABEL]
         state = FAIL_CODE
-    return {"label": label, "state": state}
+        answers = ["没有相关答案"]
+    return {"label": label, "state": state, "answers": answers}
 
 
 @app.post("/create/")
@@ -143,8 +153,8 @@ async def create_model_service(item: Item):
             os.makedirs(model_dir, exist_ok=True)
         os.system("cp {} {}".format(data_path, os.path.join(model_dir, "data.tsv")))
         os.system("sh auto_train.sh {} {} {} {}".format(record_id, name, domain, data_path))
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         state = FAIL_CODE
     return {"record_id": record_id, "state": state}
 
@@ -162,15 +172,20 @@ async def create_model_new_service(item: Item):
         model_dir = "./output/{}/{}_{}".format(domain, name, record_id)
         if not os.path.exists(model_dir):
             os.makedirs(model_dir, exist_ok=True)
+        label2answer = {}
         with open(os.path.join(model_dir, "data.tsv"), mode="w") as f:
             for category in categories:
                 texts, _ = get_category_queries(conn, category)
+                answer = get_category_answer(conn, category)
+                label2answer[category] = answer
                 for text in texts:
                     f.write("{}\t{}\n".format(text, category))
+        with open(os.path.join(model_dir, "label2answer.json"), mode="w") as f:
+            json.dump(label2answer, f, indent=2, ensure_ascii=False)
         os.system("sh auto_train.sh {} {} {} {}".format(
             record_id, name, domain, os.path.join(model_dir, "data.tsv")))
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         state = FAIL_CODE
     return {"record_id": record_id, "state": state}
 
@@ -188,11 +203,11 @@ async def update_model_service(item: Item):
         state_map[domain]["model"] = None
         state_map[domain] = load_model(model_dir)
         conn = get_mysql_connect()
-        if old_record_id != -1:
+        if old_record_id == STATE_USING_NUMBER:
             update_model_record(conn, old_record_id, STATE_READY_NUMBER)
         update_model_record(conn, record_id, STATE_USING_NUMBER)
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         state = FAIL_CODE
     return {"state": state}
 
@@ -208,8 +223,8 @@ async def delete_model_service(item: Item):
         if res != STATE_READY_NUMBER:
             state = FAIL_CODE
         model_state = res
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         state = FAIL_CODE
         model_state = STATE_ERROR_NUMBER
     return {"state": state, "model_state": model_state}
@@ -224,8 +239,8 @@ async def create_category_service(item: DataItem):
         answer = item.answer
         conn = get_mysql_connect()
         category_id = insert_category(conn, name, answer)
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         state = FAIL_CODE
     return {"category_id": category_id, "state": state}
 
@@ -238,8 +253,8 @@ async def update_category_service(item: DataItem):
         answer = item.answer
         conn = get_mysql_connect()
         state = update_category(conn, category_id, answer)
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         state = FAIL_CODE
     return {"state": state}
 
@@ -252,8 +267,8 @@ async def delete_category_service(item: DataItem):
         conn = get_mysql_connect()
         if delete_category(conn, category_id) == STATE_ERROR_NUMBER:
             state = FAIL_CODE
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         state = FAIL_CODE
     return {"state": state}
 
@@ -266,8 +281,8 @@ async def create_query_service(item: DataItem):
         text = item.text
         conn = get_mysql_connect()
         query_id = insert_query(conn, category_id, text)
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         state = FAIL_CODE
     return {"query_id": query_id, "state": state}
 
@@ -279,7 +294,7 @@ async def delete_query_service(item: DataItem):
         query_id = str(item.query_id)
         conn = get_mysql_connect()
         delete_query(conn, query_id)
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         state = FAIL_CODE
     return {"state": state}
