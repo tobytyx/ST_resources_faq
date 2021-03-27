@@ -1,20 +1,22 @@
 # -*- coding: utf-8 -*-
 import os
+import traceback
 import torch
 import json
+import pickle
+import time
 from shutil import copyfile
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import argparse
 from transformers import AdamW
-from dataset import EncoderDataset
 import random
 import numpy as np
+from dataset import EncoderDataset
 from tools import create_model, get_tsv_data, create_data_vec
 from log import create_logger
 from mysql_utils import get_mysql_connect, update_model_record, STATE_ERROR_NUMBER, STATE_READY_NUMBER
-import pickle
-import time
+
 
 
 def setup_seed(seed):
@@ -49,6 +51,7 @@ def get_args():
     args = vars(args)
     return args
 
+
 def main(args):
     args["output_dir"] = "./output/{}/{}_{}".format(args["domain"], args["name"], args["record_id"])
     data_path = os.path.join(args["output_dir"], "data.tsv")
@@ -58,7 +61,8 @@ def main(args):
         try:
             copyfile(args["data_path"], data_path)
         except IOError as e:
-            logger.info("No source file", e)
+            traceback.print_exc()
+            logger.info("No source file")
             return -1
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     with open(os.path.join(args["output_dir"], "args.json"), mode="w") as f:
@@ -108,7 +112,7 @@ def main(args):
             logger.info("finish generate corpus vecs to " + os.path.join(args["output_dir"], "total.pkl"))
             key = True
         except RuntimeError as e:
-            logger.error(e)
+            traceback.print_exc()
             if oom_count >= args["max_oom"]:
                 break
             oom_count += 1

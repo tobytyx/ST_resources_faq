@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import pymysql
+import traceback
 from pymysql.connections import Connection
 MYSQL_USER = 'tyx'
 MYSQL_PASS = 'tyx'
@@ -26,8 +27,8 @@ def get_mysql_connect():
             database=MYSQL_DB,
             charset='utf8mb4'
         )
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         conn = None
     return conn
 
@@ -51,8 +52,8 @@ def insert_model_record(conn: Connection, name, domain, state, data_path, catego
         record_id = int(cur.fetchone()[0])
         conn.commit()
         cur.close()
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         return STATE_ERROR_NUMBER
     return record_id
 
@@ -75,8 +76,8 @@ def insert_model_record_new(conn: Connection, name, domain, state, categories, c
         record_id = int(cur.fetchone()[0])
         conn.commit()
         cur.close()
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         return STATE_ERROR_NUMBER
     return record_id
 
@@ -99,8 +100,8 @@ def delete_model_record(conn: Connection, record_id):
             )
             conn.commit()
             cur.close()
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         return STATE_ERROR_NUMBER
     return state
 
@@ -118,8 +119,8 @@ def update_model_record(conn: Connection, uid, state):
             return STATE_ERROR_NUMBER
         conn.commit()
         cur.close()
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         return STATE_ERROR_NUMBER
     return 0
 
@@ -134,8 +135,8 @@ def init_model_record():
         )
         conn.commit()
         cur.close()
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         return STATE_ERROR_NUMBER
     return 0
 
@@ -155,8 +156,8 @@ def insert_category(conn: Connection, name, answer):
         category_id = int(cur.fetchone()[0])
         conn.commit()
         cur.close()
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         return STATE_ERROR_NUMBER
     return category_id
 
@@ -177,8 +178,8 @@ def delete_category(conn: Connection, category_id):
         )
         conn.commit()
         cur.close()
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         return STATE_ERROR_NUMBER
     return 0
 
@@ -196,8 +197,8 @@ def update_category(conn: Connection, category_id, answer):
             return STATE_ERROR_NUMBER
         conn.commit()
         cur.close()
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         return STATE_ERROR_NUMBER
     return 0
 
@@ -215,6 +216,19 @@ def get_category_queries(conn: Connection, category_id):
     return texts, query_num
 
 
+def get_category_answer(conn: Connection, category_id):
+    cur = conn.cursor()
+    query_num = cur.execute(
+        'select answer from faq_management_category where category_id=%s',
+        args=(category_id)
+    )
+    if query_num == 0:
+        return ""
+    answer = cur.fetchone()[0]
+    cur.close()
+    return answer
+
+
 def insert_query(conn: Connection, category_id, text):
     try:
         category_id = str(category_id)
@@ -230,8 +244,8 @@ def insert_query(conn: Connection, category_id, text):
         query_id = int(cur.fetchone()[0])
         conn.commit()
         cur.close()
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         return STATE_ERROR_NUMBER
     return query_id
 
@@ -252,7 +266,7 @@ def delete_query(conn: Connection, query_id):
         )
         conn.commit()
         cur.close()
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         return STATE_ERROR_NUMBER
     return 0
