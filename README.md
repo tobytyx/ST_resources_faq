@@ -56,4 +56,17 @@ python train.py  # 详细参数设置请参照train.py
 ### 线上运行
 ```
 uvicorn server:app --port 9900 --host 0.0.0.0
+
+# 上线模型
+POST
+IP:9900/update/
+JSON:{
+	"record_id": 1,
+	"domain": "patent",
+	"name": "bi_patent"
+}
+
+# 查询faq
+GET
+IP:9900/faq/?domain=patent&text=专利时间是啥
 ```
