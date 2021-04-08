@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import uvicorn
 from typing import List
 import traceback
 from tools import create_model
@@ -203,8 +204,7 @@ async def update_model_service(item: Item):
         state_map[domain]["model"] = None
         state_map[domain] = load_model(model_dir)
         conn = get_mysql_connect()
-        if old_record_id == STATE_USING_NUMBER:
-            update_model_record(conn, old_record_id, STATE_READY_NUMBER)
+        update_model_record(conn, old_record_id, STATE_READY_NUMBER)
         update_model_record(conn, record_id, STATE_USING_NUMBER)
     except Exception:
         traceback.print_exc()
@@ -298,3 +298,6 @@ async def delete_query_service(item: DataItem):
         traceback.print_exc()
         state = FAIL_CODE
     return {"state": state}
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=9998)

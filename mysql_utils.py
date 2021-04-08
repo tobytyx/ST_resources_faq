@@ -102,6 +102,7 @@ def delete_model_record(conn: Connection, record_id):
             cur.close()
     except Exception:
         traceback.print_exc()
+        print(record_id)
         return STATE_ERROR_NUMBER
     return state
 
@@ -121,6 +122,7 @@ def update_model_record(conn: Connection, uid, state):
         cur.close()
     except Exception:
         traceback.print_exc()
+        print(uid, state)
         return STATE_ERROR_NUMBER
     return 0
 
