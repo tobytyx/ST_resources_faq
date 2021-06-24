@@ -93,6 +93,7 @@ def delete_model_record(conn: Connection, record_id):
         if record_num == 0:
             return STATE_ERROR_NUMBER
         state = int(cur.fetchone()[0])
+        print("state ", state)
         if state == STATE_READY_NUMBER:
             cur.execute(
                 'delete from `faq_management_model` where record_id=%s',
@@ -100,6 +101,7 @@ def delete_model_record(conn: Connection, record_id):
             )
             conn.commit()
             cur.close()
+            print(record_id)
     except Exception:
         traceback.print_exc()
         print(record_id)

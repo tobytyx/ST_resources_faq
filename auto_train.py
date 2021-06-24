@@ -69,7 +69,7 @@ def main(args):
         json.dump(args, f, ensure_ascii=False, indent=2)
     logger.info(args)
     key = False
-    oom_count = 0
+    try_count = 2
     model, tokenizer = create_model(args, device)
     data_list = get_tsv_data(data_path)
     # 开始训练
@@ -77,7 +77,7 @@ def main(args):
     train_dataloader = DataLoader(
         train_dataset, batch_size=args["batch_size"], shuffle=True,
         num_workers=args["num_workers"], collate_fn=train_dataset.collate_fn)
-    while not key and oom_count < args["max_oom"]:
+    while not key and try_count > 0:
         try:
             model = model.to(device)
             optimizer = AdamW(model.parameters(), lr=args["lr"], correct_bias=True)
@@ -113,11 +113,8 @@ def main(args):
             key = True
         except RuntimeError as e:
             traceback.print_exc()
-            if oom_count >= args["max_oom"]:
-                break
-            oom_count += 1
-            logger.info("OOM count: {}, sleep 30s".format(oom_count))
-            time.sleep(30)
+            device = torch.device("cpu")
+            try_count -= 1
     return 0 if key else -1
 
 

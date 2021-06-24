@@ -76,7 +76,7 @@ def get_negative_sample(clusters: Dict, tid: int):
     tids = set(list(clusters.keys()))
     tids.remove(tid)
     tids = list(tids)
-    assert len(tids) > 0, "no negative clusters"
+    # assert len(tids) > 0, "no negative clusters"
     neg_tid = random.choice(tids)
     return random.choice(clusters[neg_tid])
 
